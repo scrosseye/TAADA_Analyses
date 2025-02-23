@@ -1,0 +1,295 @@
+---
+title: "TAADA Analysis CLEAR"
+author: "Anon for now"
+date: "`r Sys.Date()`"
+output: 
+  html_document: 
+    toc: yes
+    number_sections: yes
+---
+
+This analysis was conducted using the CLEAR corpus available at https://github.com/scrosseye/CLEAR-Corpus.
+
+The corpus was ran through the The Tool for Automatic Analysis of Decoding Ambiguity (TAADA) available at anonymous for now location
+
+To match the miscue analysis, this is only for 
+
+  - content words
+  - tokens (not lemma)
+
+
+Clean up environment and call in tidyverse
+```{r}
+
+rm(list=ls(all=TRUE))
+library(tidyverse)
+
+```
+
+# Initial correlations 
+
+These are for the entire dataset regardless of Multi-collinerity
+
+Also, includes word count to assess correlations with text length 
+
+```{r}
+
+all_variables <- read.csv("taada_clear_results_token_cw.csv")
+str(all_variables, list.len = 10)
+
+all_var_corr <- all_variables[, c(4:66)]
+str(all_var_corr, list.len = 10)
+
+all_var_corr_matrix <- cor(all_var_corr)
+
+write.csv(all_var_corr_matrix, "all_variables_corr_matrix_taada_clear.csv")
+
+```
+
+
+
+# Wrangle data
+
+Call in non-multicollinear variables and keep only those variables.
+
+- These are only variables that are not multi-collinear with one another.
+
+```{r}
+
+list.files()
+non_mc <- read_csv("multicollear_ease_reading_taada.csv") #read non-collinear variables in
+str(non_mc)
+
+variables <- non_mc[, 1] #grab up variable names
+str(variables)
+print(variables) #still a tibble
+
+#pull variables out of tibble into vector
+variables_2 <- variables %>% 
+  pull(...1)
+
+variables_2
+
+#call in final data frame
+taada_results_2 <- read_csv("taada_clear_results_token_cw.csv") %>% 
+  dplyr::select(target_files, BT_easiness, variables_2)
+
+
+str(taada_results_2, list.len = 10)
+
+```
+
+# Statistical Analyses
+
+## Correlations
+
+```{r}
+
+str(taada_results_2)
+
+#need better names for the correlation plots and matrices
+
+taada_results_3 <- taada_results_2 %>% 
+  rename(Reading_ease = BT_easiness,
+         Word_freq = subtlexus_log_freq_tok_cw,
+         Phonographic_neighbors_wo_homophones = OG_N_tok_cw,
+         Syllable_len = avg_syl_length_tok_cw,
+         Number_rhymes_1000 = num_rhymes_1000_coca_tok_cw,
+         Phonemes_per_characters = avg_phone_per_char_all_tok_cw,
+         Max_conditional_prob_vowel = weight_max_prob_vowel_tok_cw,
+         Frequency_ortho_neighbors = Freq_N_tok_cw,
+         Mid_conditional_prob = mid_prob_all_tok_cw,
+         Frequency_phono_neighbors = Freq_N_PH_tok_cw,
+         Phonemes_per_consonant = avg_phone_per_char_cons_tok_cw, 
+         Number_rhymes_10000 = num_rhymes_10000_coca_tok_cw,
+         Frequency_phono_neighbors_w_homophones = Freq_N_OGH_tok_cw,
+         Reverse_prior_prob_consonants = reverse_prior_prob_cons_tok_cw,
+         Reverse_prior_prob = reverse_prior_prob_all_tok_cw)
+         
+
+str(taada_results_3)
+
+#grab up data needed
+
+data_analysis <- taada_results_3[, c(2:16)]
+str(data_analysis)
+
+#simple correlation matrix
+
+corr_matrix <- cor(data_analysis)
+#corr_matrix
+
+#save to csv file
+
+write.csv(corr_matrix, "corr_matrix_taada_clear_final_variables.csv")
+
+#prettier plot using corrplot
+
+library(corrplot)
+
+pdf("corr_plot.pdf")
+
+corr_plot <- corrplot(corr_matrix, 
+         type="lower", #put color strength on bottom
+         tl.pos = "ld", #Character or logical, position of text labels, 'ld'(default if type=='lower') means left and diagonal,
+         tl.cex = 1, #Numeric, for the size of text label (variable names).
+         method="color", 
+         addCoef.col="black", 
+         diag=FALSE,
+         tl.col="black", #The color of text label.
+         tl.srt=45, #Numeric, for text label string rotation in degrees, see text
+         is.corr = FALSE,
+         #order = "hclust", #order results by strength
+         #col=gray.colors(100), #in case you want it in gray...
+         number.digits = 2) #number of digits after decimal
+
+#print(corr_plot)
+dev.off()
+
+
+library(PerformanceAnalytics) #for chart.Correlation
+
+pdf("corr_chart.pdf")
+chart.Correlation(data_analysis, histogram = TRUE, method = "pearson")
+dev.off()
+
+```
+
+## Machine learning model
+
+```{r}
+#install.packages("leaps")
+library(leaps)
+library(caret)
+str(data_analysis)
+
+set.seed(1234)
+
+# Set up repeated k-fold cross-validation
+train.control <- trainControl(method = "cv", number = 10)
+#method = cross validation, number = ten times (10 fold cross-validation)
+
+#the 10 fold CV stepwise model used
+lm_cv10_step <- train(Reading_ease ~ .,data = data_analysis,
+                           #method = "leapForward", #stepwise selection
+                           #method = "leapBackward", #stepwise selection
+                           method = "leapSeq", #stepwise selection 
+                           tuneGrid = data.frame(nvmax = 1:14), #using 1-14 predictor that we have
+                           trControl = train.control)
+
+#the model
+summary(lm_cv10_step)
+lm_cv10_step$results 
+lm_cv10_step
+
+#best tuned model
+lm_cv10_step$bestTune  #9 is most parsimonious model...
+
+#which variables were strong predictors
+summary(lm_cv10_step$finalModel)
+
+#co-efficients for model using all 10 variables
+coef(lm_cv10_step$finalModel, 9)
+
+#suppression effects
+#remove
+#1.Number_rhymes_10000 (index 12)
+#2 Frequency_phono_neighbors_w_homophones (index 13)
+#3 Frequency_ortho_neighbors (index 8)
+#4 Frequency_phono_neighbors (index 10)
+#5 Phonemes_per_characters (index 6)
+#6 Phonemes_per_consonant (index 11)
+#7 Reverse_prior_prob (index 15)
+
+str(data_analysis)
+data_analysis_2 <- data_analysis[,c(1:5, 7, 9, 14)]
+str(data_analysis_2)
+
+### New model without suppression
+
+#the 10 fold CV stepwise model used
+lm_cv10_step_2 <- train(Reading_ease ~ .,data = data_analysis_2,
+                           #method = "leapForward", #stepwise selection
+                           #method = "leapBackward", #stepwise selection
+                           method = "leapSeq", #stepwise selection 
+                           tuneGrid = data.frame(nvmax = 1:7), #using 1-14 predictor that we have
+                           trControl = train.control)
+
+#the model
+summary(lm_cv10_step_2)
+lm_cv10_step_2$results 
+lm_cv10_step_2
+
+#best tuned model
+lm_cv10_step_2$bestTune  #4 is most parsimonious model...
+
+#which variables were strong predictors
+summary(lm_cv10_step_2$finalModel)
+
+#co-efficients for model using all 10 variables
+coef(lm_cv10_step_2$finalModel, 4)
+
+#r2 = 3392545
+
+#r = .583
+.583*.583
+
+```
+
+
+**Final model**
+
+```{r}
+
+#many non-significant variables here...
+
+final_lm <- lm(Reading_ease ~ Word_freq + Phonographic_neighbors_wo_homophones + Syllable_len + Reverse_prior_prob_consonants, data = data_analysis)
+summary(final_lm)
+
+```
+
+Check variable importance metrics
+
+```{r}
+library(relaimpo)#variable importance
+
+metrics_w_types_all <- calc.relimp(final_lm)
+metrics_w_types_all
+
+calc.relimp(final_lm,type=c("lmg","last","first","pratt"),rela=TRUE)
+#this reports percentage of importance by variable that adds up to 100
+
+```
+
+Check for multicollinearity using VIF values
+
+```{r}
+
+car::vif(final_lm) #VIF values for the regression to ensure no problems with multi-collinearity
+
+```
+
+Check for normal distributions of residuals
+
+```{r}
+
+plot(final_lm, which = 1) #residual plot
+
+```
+
+
+## Interpret final model
+
+**Texts that are easier to read include**
+
+- More frequent words and root words
+- More phonographic neighbors
+- Longer syllables
+
+
+**Texts that are more difficult to read include**
+
+- Stronger reverse probabilities for the correspondences between graphemes and their phonemic realizations (all consonants)
+
+
+

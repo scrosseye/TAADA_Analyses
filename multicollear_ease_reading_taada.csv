@@ -1,0 +1,15 @@
+"","x"
+"subtlexus_log_freq_tok_cw",0.572730810534558
+"OG_N_tok_cw",0.431946967408768
+"avg_syl_length_tok_cw",0.350850546920726
+"num_rhymes_1000_coca_tok_cw",0.304720367083957
+"avg_phone_per_char_all_tok_cw",0.290883707388701
+"weight_max_prob_vowel_tok_cw",0.255082737755421
+"Freq_N_tok_cw",0.206615477820426
+"mid_prob_all_tok_cw",0.204057133752044
+"Freq_N_PH_tok_cw",0.185221921308936
+"avg_phone_per_char_cons_tok_cw",0.129009534905771
+"num_rhymes_10000_coca_tok_cw",0.119408280512159
+"Freq_N_OGH_tok_cw",0.102054180907289
+"reverse_prior_prob_cons_tok_cw",-0.276309507116323
+"reverse_prior_prob_all_tok_cw",-0.348115145560594
