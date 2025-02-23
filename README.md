@@ -1,6 +1,6 @@
 # TAADO_Analyses
 
-This repository contains the two analyses conducted using TAADA. They are as follows
+This repository contains the two analyses conducted using TAADA and reported in an anonymous for now paper. They are as follows
 
 Study 1
 
@@ -16,6 +16,8 @@ Statistical Analyses. To predict text reading ease scores found in the CLEAR cor
 Study 2
 
 Our second study is not corpus-based but rather behavioral and is meant to provide a more fine-grained analysis of decoding. The data comes from younger readers tasked with reading a text aloud. The read alouds were recorded and each word produced by the students was coded as being accurate or inaccurately pronounced (i.e., miscues). Miscues were coded as words where a child made a deletion, omission, mispronunciation, substitution or self-correction when reading. 
+
+The data for this study could not be shared, but the methods and analyses are shareable.
 
 Datasets
 The full dataset used in the second study as extracted from three different read aloud studies conducted in the same lab using the same protocols. Across all three studies, there were 296 total participants who produced 653 distinct words comprising 534 distinct lemmas. In total, there were 120,822 observations of students reading a word aloud, on which participants had no miscues for 114,374 observations and had a miscue for 6,475 observations. 
