@@ -1,4 +1,4 @@
-# TAADO_Analyses
+# TAADA_Analyses
 
 This repository contains the two analyses conducted using TAADA and reported in an anonymous for now paper. They are as follows
 
