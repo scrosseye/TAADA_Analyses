@@ -1,0 +1,794 @@
+---
+title: "LERD RCV Analyses new decoding"
+author: "Anonymous for now"
+date: "2025-10-20"
+output: 
+  html_document: 
+    toc: yes
+    number_sections: yes
+---
+
+This is to create a new dataframe for miscue data that includes word order and text.
+
+
+
+TO GET TO THE ANALYSIS AND SKIP THE WRANGLING, GO TO LINE 166!
+
+
+**LERD RCV**
+
+*This is for the LERD RCV data from Cutting's lab.*
+
+THIS DATA CANNOT BE SHARED
+ 
+ - So, the data is not available for use or testing 
+
+Purpose
+
+- Miscue analysis for kids reading words aloud.
+
+- Matched with TAADA output to predict miscues.
+
+
+## Data Wrangling
+
+###  Call in the two datasets
+
+
+```{r}
+library(tidyverse)
+
+
+# This is the original dataset that did not have order or text information
+
+lrd_data_orig <- read.csv("lrd_all_rcv_2.csv") %>% 
+  select(-X, -Unnamed..0)
+
+str(lrd_data_orig) #x 120,822 rows
+
+lrd_data_new <- read.csv("new_taada_miscue_data_for_revision.csv") 
+
+str(lrd_data_new) # 120,822 rows
+
+unique(lrd_data_new$passage) # There are only 9 passages, not 10 like we wrote up. There was never 10 though!
+
+# we are missing the deserts text. This was misreported by Kenny and made it into the paper.
+
+```
+
+### Look for overlap
+
+```{r}
+
+n_distinct(lrd_data_orig$ID) # 296 participants
+n_distinct(lrd_data_new$ID) # 296 participants
+
+
+```
+
+
+### Descriptives for miscue data only
+
+
+```{r}
+
+
+#this is for all words and lemmas (content and stop)
+
+#unique number of words
+n_distinct(lrd_data_orig$Word) #653 words
+n_distinct(lrd_data_orig$lemma) #534 lemmas
+n_distinct(lrd_data_new$word) #653 words
+
+# Are there different words?
+
+not_shared <- anti_join(lrd_data_orig, lrd_data_new, by = c("Word" = "word"))
+
+n_distinct(not_shared$Word) # all words are shared...
+
+
+# what about number of miscues?
+
+table(lrd_data_orig$correct) # 6475 miscues
+
+table(lrd_data_new$miscue) # 6475 miscues
+
+```
+
+
+### Join dataframes
+
+Need to join the original dataframe with the new one so the new one (lrd_data_new) has
+
+1. lemmas (under lemma)
+2. content/stop word (under content_word)
+
+```{r}
+
+# get the data we need
+
+str(lrd_data_orig)
+
+lem_cont <- lrd_data_orig %>% 
+  select(Word, lemma, content_word) %>% 
+  rename(word = Word) %>% #rename to match new data
+  distinct() #get distinct words only
+
+length(unique(lem_cont$lemma)) # 534 lemmas
+
+# this should be the final dataframe minus the taada information
+lrd_full_data_new <- lrd_data_new %>% 
+  left_join(lem_cont, by = "word")
+
+
+
+```
+
+
+### Merge in TAADA results
+
+From lemma_miscue_cutting_taada_results.csv
+
+Some of the results for all words are problematic because some words, like "toads" are missing information like
+
+  - OLD	OLDF	PLD	PLDF
+
+But, this information is available for the lemma (toad).
+
+So, we only ran TAADA on the lemmas...
+
+```{r}
+
+taada <- read.csv("lemma_miscue_cutting_taada_results.csv") %>% 
+  select(-target_files) #remove target files
+
+lrd_full_data_new_taada <- lrd_full_data_new %>% 
+  inner_join(taada, by = "lemma") #join on lemma
+
+write.csv(lrd_full_data_new_taada, "final_df_miscue_taada_for_revision.csv")
+
+```
+
+
+
+
+## Content word only Analysis
+
+This is an analysis of miscues using only the content words
+
+### Wrangling
+
+```{r}
+
+library(tidyverse)
+library(psych)
+
+#skip to here to read in .csv
+
+#lrd_full_data_new_taada <- read.csv("final_df_miscue_taada_for_revision.csv")
+
+str(lrd_full_data_new_taada)
+
+dim(lrd_full_data_new_taada) #120,000 instances
+
+lrd_full_data_new_taada_cw <- lrd_full_data_new_taada %>%
+  filter(content_word == "content")
+
+dim(lrd_full_data_new_taada_cw) #55,000 instances
+
+n_distinct(lrd_full_data_new_taada_cw$lemma) #398 lemmas available now
+
+na_counts <- lrd_full_data_new_taada_cw %>%
+  summarise_all(~ sum(is.na(.)))
+
+na_counts
+
+### The NA counts
+#weight_max_prob_cons_tok_aw = 478
+#weight_min_prob_cons_tok_aw = 478
+#weight_min_prob_cons_tok_aw = 478
+#weight_max_prob_vowel_tok_aw = 284
+#weight_min_prob_vowel_tok_aw = 284
+#weight_min_prob_vowel_tok_aw = 284
+#weight_min_prob_vowel_tok_aw = 284
+#weight_mid_prob_all_tok_aw = 284
+#weight_min_prob_all_tok_aw = 284
+
+
+lemmas_with_na <- lrd_full_data_new_taada_cw %>%
+  filter(is.na(weight_max_prob_cons_tok_aw)) %>% #filter by column that has NA
+  select(lemma) #select the lemmas with NAs
+
+table(lemmas_with_na$lemma)
+
+#three words with NAs (eye, moonless, seethrough)
+
+```
+
+So... remove items (n = 3) or remove TAADA variables (n = 9)?
+
+#### Remove items with NAs
+
+NAs for eye, moonless, seethrough
+
+weight_max_prob_cons_tok_aw = 478
+weight_min_prob_cons_tok_aw = 478
+weight_min_prob_cons_tok_aw = 478
+
+```{r}
+
+lemmas <- c("eye", "moonless", "seethrough") #words to remove.
+
+lrd_rcv_taada_lemma_cw_pruned_item <- lrd_full_data_new_taada_cw %>%
+  filter(!lemma %in% lemmas) #filter them out in the column
+
+
+n_distinct(lrd_rcv_taada_lemma_cw_pruned_item$lemma) #down to 395
+
+dim(lrd_rcv_taada_lemma_cw_pruned_item) #still around 55,000 items
+
+#str(lrd_rcv_taada_lemma_cw_pruned_item)
+
+```
+
+#### What about high zero counts
+
+```{r}
+
+#this will not include rhyme counts where zeroes are meaningful
+
+zero_counts <- lrd_rcv_taada_lemma_cw_pruned_item %>%
+  summarise(across(everything(), ~ sum(. == 0, na.rm = TRUE)))
+
+zero_counts
+
+#these variables have high zero counts and should be removed (over 10%)
+
+#OG_N_tok_aw, Freq_N_OG_tok_aw, Freq_N_OGH_tok_aw, Ortho_N_tok_aw, Freq_N_tok_aw
+
+high_zeros <- c('OG_N_tok_aw', 'Freq_N_OG_tok_aw', 'Freq_N_OGH_tok_aw', 'Ortho_N_tok_aw', 'Freq_N_tok_aw')
+
+lrd_rcv_taada_lemma_cw_pruned_item_2 <- lrd_rcv_taada_lemma_cw_pruned_item %>%
+  select(-all_of(high_zeros)) #remove the variables
+
+str(lrd_rcv_taada_lemma_cw_pruned_item_2) # got rid of five variables above
+
+
+
+```
+
+#### The data we want
+
+What is the final data that we want.
+
+```{r}
+
+column_names <- colnames(lrd_rcv_taada_lemma_cw_pruned_item_2) #get column names
+
+num_names <- setNames(seq_along(column_names), column_names) #set names function
+
+print(num_names)
+
+lrd_rcv_taada_lemma_cw_pruned_item_var_final <- lrd_rcv_taada_lemma_cw_pruned_item_2[,c(1:3, 5:6, 8:63)] #use this if you do not read in data above (around line 179)
+
+# lrd_rcv_taada_lemma_cw_pruned_item_var_final <- lrd_rcv_taada_lemma_cw_pruned_item_2[,c(2:4, 6:7, 9:64)] #use this if you read in data above (around line 179)
+
+str(lrd_rcv_taada_lemma_cw_pruned_item_var_final) #54465 items
+
+length(unique(lrd_rcv_taada_lemma_cw_pruned_item_var_final$lemma)) #395
+
+table(lrd_rcv_taada_lemma_cw_pruned_item_var_final$miscue) #51,000 correct and 3,000 incorrect
+
+```
+
+### Descriptive statistics
+
+For the following groups
+
+Correct = 1
+Incorrect = 0
+
+
+**Mean and SD**
+
+```{r}
+
+str(lrd_rcv_taada_lemma_cw_pruned_item_var_final, list.len = 10)
+
+lrd_rcv_taada_lemma_cw_pruned_item_var_final_descr <- lrd_rcv_taada_lemma_cw_pruned_item_var_final[, c(2, 6:61)]
+
+str(lrd_rcv_taada_lemma_cw_pruned_item_var_final_descr, list.len = 10)
+
+#lrd_rcv_taada_lemma_cw_pruned_item_var_final_descr
+
+#mean scores for correct and incorrect
+lrd_rcv_taada_lemma_cw_pruned_item_var_final_descr %>% 
+  group_by(miscue) %>% 
+  summarise(across(everything(), list(mean)))
+
+#SD for correct and incorrect
+lrd_rcv_taada_lemma_cw_pruned_item_var_final_descr %>% 
+  group_by(miscue) %>% 
+  summarise(across(everything(), list(sd)))
+
+
+```
+
+## Analyses for data pruned by three items and removing variables with over 10% zero counts
+
+These are analyses that  
+
+1. use mean scores by word 
+2. oversample the data to make up for unbalanced data sample (may be better, see Vanhoeyveld, J., & Martens, D. (2018). Imbalanced classification in sparse and large behaviour datasets. Data Mining and Knowledge Discovery, 32(1), 25-82.)
+
+### Average Score by Word Analyses
+
+This aggregates scores on correct by word
+
+Because the data is very unbalanced (i.e., many more correct than incorrect scores)
+
+```{r}
+#library(dplyr)
+
+
+str(lrd_rcv_taada_lemma_cw_pruned_item_var_final, list.len = 10)
+
+regression_all_df <- lrd_rcv_taada_lemma_cw_pruned_item_var_final %>% 
+  dplyr::select(lemma, miscue) %>% 
+  mutate(correct_reverse = case_when(miscue == 0 ~ 1, 
+                                     miscue == 1 ~ 0)) %>% #reverse scale so they are at percentage correct
+  group_by(lemma) %>% 
+  summarise(avg_word_correct = mean(correct_reverse))
+
+str(regression_all_df) #df that is 395 words
+
+count_reg_all_df <- regression_all_df %>% 
+  count(avg_word_correct, sort = TRUE)
+#there are 40 1s in the df. That is below 10%
+
+str(count_reg_all_df)
+
+ggplot(count_reg_all_df, aes(x=avg_word_correct, y=n)) + geom_point()
+
+ggplot(count_reg_all_df, aes(x = avg_word_correct)) + 
+  geom_histogram(binwidth = .01, fill = "blue", color = "black") + 
+  labs(x = "Miscue Accuracy", y = "Frequency", title = "Histogram for Miscues")
+
+#most words have a high accuracy.
+
+```
+
+### Analyses based on oversampling the data
+
+This will give us as many corrects as incorrects
+
+```{r}
+
+#this will resample from incorrect
+#https://www.rdocumentation.org/packages/ROSE/versions/0.0-4/topics/ovun.sample
+
+#install.packages("ROSE")
+library(ROSE)
+
+str(lrd_rcv_taada_lemma_cw_pruned_item_var_final, list.len = 10) #this is the data that is cleaned and used in the correlations and regressions above
+#it does include lemmas, participant IDs, word number, passages
+dim(lrd_rcv_taada_lemma_cw_pruned_item_var_final) #55,000 instances
+table(lrd_rcv_taada_lemma_cw_pruned_item_var_final$miscue) #51,000 correct and 3,000 incorrect still
+
+
+
+
+
+51287*2 #sample size needed (this is the sample size for 0's)
+
+over_sample_glmm_cw_pruned <- ovun.sample(miscue~., data = lrd_rcv_taada_lemma_cw_pruned_item_var_final, method = "over", N = 102574, seed=123)$data
+str(over_sample_glmm_cw_pruned, list.len = 10)
+table(over_sample_glmm_cw_pruned$miscue)
+
+#now we have an even balance....
+
+write.csv(over_sample_glmm_cw_pruned, "over_sampled_final_data_taada_for_glmm_new_for_revision.csv")
+
+
+```
+
+#### Descriptive stats
+
+```{r}
+
+str(over_sample_glmm_cw_pruned, list.len = 10)
+
+over_sample_glmm_cw_pruned_2 <- over_sample_glmm_cw_pruned[,c(2, 6:61)]
+
+#mean
+means_binary_oversample <- over_sample_glmm_cw_pruned_2 %>% 
+  group_by(miscue) %>% 
+  summarise(across(everything(), list(mean)))
+
+means_binary_oversample
+
+
+#sd
+
+sd_binary_oversample <- over_sample_glmm_cw_pruned_2 %>% 
+  group_by(miscue) %>% 
+  summarise(across(everything(), list(sd)))
+
+sd_binary_oversample
+
+
+```
+
+
+
+#### Check for Multicollinearity
+
+```{r}
+
+library(Hmisc)
+
+str(over_sample_glmm_cw_pruned_2)
+
+#correlation matrix with p values (requires Hmisc)
+correl2 <- rcorr(as.matrix(over_sample_glmm_cw_pruned_2)) 
+#correl2
+
+# Extract the correlation coefficients
+corr_r <- correl2$r
+
+#round them to 3 decimals
+corr_r_round <- round(corr_r, 3)
+#corr_r_round
+
+#lots of multicollinearity as you would expect
+write.csv(corr_r_round, "mc_check_prior_to_glmm_new_revision.csv")
+```
+
+**Multicollinearity**
+
+This is not perfect because using correlation with dummy coded correct variable, but it will be good enough
+
+```{r}
+#set correlation threshold to .0000000000001
+
+#mc function is below##
+#Function takes in two arguments, dat and dep (dep is dependent variable)
+cormultlin <- function(dat, dep) {
+  #Function creates a single-column correlation matrix, maincor, where only the correlations between the dependent variable and all other variables are calculated and stored.
+  maincor <- cor(dat, dat[[dep]])
+  #print(maincor)
+  #A dataframe without the data points for the dependent variable is created to be used later to check correlation between independent variables.
+  nodep <- dat
+  nodep[[dep]] <- NULL
+  # An empty vector to store the correct result is created
+  answer <- vector()
+  #Line6: An empty vector (=discard pile) is created to store the names of any independent variable that are 
+  #1. Moderately/strongly correlated (r > .7) to one of the independent variables inside the answer vector (i.e. multicollinear) 
+  #2. Has weaker correlation with the dependent variable than the aforementioned variable.
+  discard <- vector()
+  # Finds all independent variables that have a weak correlation (r > .1) to the dependent variable. 
+  #Stores the results to a vector: high_cors.
+  high_cors <- maincor[abs(maincor) > 0.000000000000000001 & maincor != 1,]
+  #print(high_cors)
+  #  Loops through the name of all of the independent variables that are moderately/strongly correlated to the dependent variable
+  #starting with the variable with the strongest correlation and moving on to the weakest.
+  for (i in names(sort(high_cors, decreasing=TRUE))) {
+    #check if the name of the variable is in the discard pile, which would mean that the variable is moderately/strongly correlated 
+    #to one of the variables in the answer vector while having a weaker correlation with the dependent variable. 
+    #Skip the variable if it is in the discard pile.
+    if (i %in% discard) {
+      next
+      #If the variable is not in the discard pile, this variable is going into the answer vector since it has the strongest correlation to the dependent variable 
+      #out of all the remaining variables (since the loop is in descending order in terms of strength of the variable's correlation to the dependent variable) 
+      #while not having a strong correlation with any of the variables already in the answer vector (i.e. does not show multicollinearity). 
+      #Check its correlation with all other independent variables. Save the single-column correlation matrix in variable, newcor.
+    } else {
+      newcor <- cor(nodep, nodep[[i]])
+      #Check the new correlation matrix and see if any other independent variables are highly correlated with the current variable in the loop. 
+      #If any variables are highly correlated to the current variable, get the names of the variable and throw them in the discard pile 
+      #since they are multicollinear with the current variable while having a weaker correlation to the dependent variable. 
+      prison <- newcor[abs(newcor) > 0.69999 & newcor != 1,]
+      discard <- c(discard, names(prison))
+    }
+    #Append the current variable in loop to the answer vector.
+    answer <- c(answer, high_cors[i])
+  }
+  #If the answer vector is empty at the end of the loop, return string that says 'No results'. 
+  #If the answer vector is not empty, return the answer vector.
+  if (length(answer) == 0) {
+    return('No results')
+  } else {
+    return(answer)
+  }
+}
+
+
+results <- cormultlin(over_sample_glmm_cw_pruned_2, 'miscue')
+print(results)
+
+
+
+```
+
+**Select only non-multicollinear variables**
+
+```{r}
+
+#Let's get the row names from the results
+
+results_df<- as.data.frame(results) #first turn the double from the function into a dataframe
+row_names <- row.names(results_df) #grab up the row names
+#typeof(row_names) #see what format they are.
+length(row_names)
+row_names #check them
+
+#Take only the columns needed from dataframe a and create new dataframe with final variables using the row names. Print out final dataframe with ID and holistic score.
+
+str(over_sample_glmm_cw_pruned)
+
+final_variables_glmm_cw_pruned <- over_sample_glmm_cw_pruned %>% 
+  dplyr::select("ID", "lemma", "word_num", "passage", "miscue", all_of(row_names))
+
+str(final_variables_glmm_cw_pruned)
+
+#print out means
+
+final_variables_glmm_cw_pruned_2 <- final_variables_glmm_cw_pruned[, c(5:23)]
+
+#mean
+means_binary_oversample <- final_variables_glmm_cw_pruned_2 %>% 
+  group_by(miscue) %>% 
+  summarise(across(everything(), list(mean)))
+
+means_binary_oversample
+
+write_csv(means_binary_oversample, "means_final_glmm_variables_new_revision.csv")
+
+
+#sd
+
+sd_binary_oversample <- final_variables_glmm_cw_pruned_2 %>% 
+  group_by(miscue) %>% 
+  summarise(across(everything(), list(sd)))
+
+sd_binary_oversample
+
+write_csv(sd_binary_oversample, "sd_final_glmm_variables_new_revision.csv")
+
+write.csv(final_variables_glmm_cw_pruned, "final_variables_for_glmm_cw_pruned_new_revision.csv")
+
+```
+
+#### Scale variables
+
+Makes for a better GLMM
+
+```{r}
+
+
+str(final_variables_glmm_cw_pruned)
+
+scaled_final_variables_glmm_cw_pruned <- final_variables_glmm_cw_pruned %>% 
+  mutate_at(c(6:23), ~(scale(.) %>% as.vector))
+
+str(scaled_final_variables_glmm_cw_pruned)
+
+```
+
+
+
+#### GLMM on Balanced Samples
+
+##### GLMM with additional random intercept, but not slope
+
+```{r}
+
+library(lme4) 
+library(LMERConvenienceFunctions)
+library(MuMIn)
+
+#make outcome variable a factor
+scaled_final_variables_glmm_cw_pruned$miscue <- as.factor(scaled_final_variables_glmm_cw_pruned$miscue)
+str(scaled_final_variables_glmm_cw_pruned)
+
+#random effects: participant 
+random1_over <- glmer(miscue ~ (1 | ID), scaled_final_variables_glmm_cw_pruned, family="binomial" ) 
+summary(random1_over)
+r.squaredGLMM(random1_over) # r2 = 0.4257628 for theoretical, which estimates variance parameters directly from the model
+# More stable and commonly reported. Generally considered the "standard" approach
+
+#initial model, all variables 
+#Warning: Model failed to converge with max|grad| = 0.0111734 (tol = 0.002, component 1)
+#model probably too complex
+
+model_1_over <- glmer(miscue ~ 
+                  num_phone_tok_aw +
+                  reverse_prior_prob_vowel_tok_aw +
+                  num_vowel_char_tok_aw +
+                  avg_phone_per_char_cons_tok_aw +
+                  min_prob_cons_tok_aw +
+                  weight_min_prob_all_tok_aw +
+                  num_rhymes_full_elp_tok_aw +
+                  avg_phone_per_char_all_tok_aw +
+                  number_phone_all_tok_aw +
+                  avg_syl_length_tok_aw +
+                  max_prob_cons_tok_aw +
+                  num_rhymes_2500_coca_tok_aw +
+                  avg_phone_per_char_vowel_tok_aw +
+                  reverse_prior_prob_cons_tok_aw +
+                  Conditional_Probability_Average_tok_aw +
+                  Freq_N_PH_tok_aw +
+                  OG_N_H_tok_aw +
+                  coca_mag_log_freq_tok_aw + 
+                  (1 | ID)+ (1 | passage), scaled_final_variables_glmm_cw_pruned, family="binomial" ) 
+
+summary(model_1_over) #
+r.squaredGLMM(model_1_over)
+
+#what to remove and when. remove lowest z value that shows suppression
+#1 min_prob_cons_tok_aw_1 (low sig and suppression)
+#2 max_prob_cons_tok_aw_1 (low sig and suppression)
+#3 number_phone_all_tok_aw (getting less and less significant)
+#4 Freq_N_PH_tok_aw (low sig and suppression)
+#5 num_rhymes_2500_coca_tok_aw (low sig and suppression) THIS ONE CONVERGED
+#6 avg_syl_length_tok_aw (suppression)
+#7 avg_phone_per_char_vowel_tok_aw (suppression)
+#8 avg_phone_per_char_cons_tok_aw (not sig and suppression)
+#9 weight_min_prob_all_tok_aw (suppression)
+#10 num_vowel_char_tok_aw (suppression)
+#11 OG_N_H_tok_aw (suppression)
+
+
+
+model_2_over <- glmer(miscue ~ 
+                  num_phone_tok_aw +
+                  reverse_prior_prob_vowel_tok_aw +
+                  num_rhymes_full_elp_tok_aw +
+                  avg_phone_per_char_all_tok_aw +
+                  reverse_prior_prob_cons_tok_aw +
+                  Conditional_Probability_Average_tok_aw +
+                  coca_mag_log_freq_tok_aw + 
+                  (1 | ID)+ (1 | passage), scaled_final_variables_glmm_cw_pruned, family="binomial" ) 
+
+summary(model_2_over) #
+r.squaredGLMM(model_2_over)
+
+#compare models (random to full)
+
+anova(random1_over,model_2_over) #they are different, sig differences
+
+```
+
+
+**Confusion matrix **
+
+```{r}
+library(caret)
+
+predictions <- as.numeric(predict(model_2_over, type="response")>0.5)
+
+#add predictions to original dataframe
+
+scaled_final_variables_glmm_cw_pruned$predicted <- as.factor(predictions)
+
+str(scaled_final_variables_glmm_cw_pruned) 
+
+
+
+table(scaled_final_variables_glmm_cw_pruned$predicted) # two levels
+
+
+confusionMatrix(scaled_final_variables_glmm_cw_pruned$miscue, scaled_final_variables_glmm_cw_pruned$predicted,
+                mode = "everything", #what you want to report in stats
+                positive="1") 
+
+
+
+
+```
+
+### Analyses based on the original data
+
+This reports the model above without oversampling the data.
+
+
+```{r}
+
+library(psych)
+
+str(lrd_rcv_taada_lemma_cw_pruned_item_var_final, list.len = 10)
+
+
+# scale the variables
+
+lrd_rcv_taada_lemma_cw_pruned_item_var_final_2 <- lrd_rcv_taada_lemma_cw_pruned_item_var_final[, c(1:2, 4, 6:61)]
+
+str(lrd_rcv_taada_lemma_cw_pruned_item_var_final_2, list.len = 10)
+
+
+lrd_rcv_taada_lemma_cw_pruned_item_var_final_2_scaled <- lrd_rcv_taada_lemma_cw_pruned_item_var_final_2 %>% 
+  mutate_at(c(4:59), ~(scale(.) %>% as.vector))
+
+str(lrd_rcv_taada_lemma_cw_pruned_item_var_final_2_scaled, list.length = 10)
+
+psych::describe(lrd_rcv_taada_lemma_cw_pruned_item_var_final_2_scaled)
+
+
+```
+
+**The GLMM**
+
+```{r}
+
+library(lme4) 
+library(LMERConvenienceFunctions)
+library(MuMIn)
+
+
+#make outcome variable a factor
+lrd_rcv_taada_lemma_cw_pruned_item_var_final_2_scaled$miscue <-as.factor(lrd_rcv_taada_lemma_cw_pruned_item_var_final_2_scaled$miscue)
+str(lrd_rcv_taada_lemma_cw_pruned_item_var_final_2_scaled, list.len = 10)
+
+#random effects: participant 
+random1_over <- glmer(miscue ~ (1 | ID), lrd_rcv_taada_lemma_cw_pruned_item_var_final_2_scaled, family="binomial" ) 
+summary(random1_over)
+r.squaredGLMM(random1_over) # r2 = 0.4257628 for theoretical, which estimates variance parameters directly from the model
+# More stable and commonly reported. Generally considered the "standard" approach
+
+# This is the final model from above with the oversampled data.
+# Just reproduced here without oversampling
+
+model_full <- glmer(miscue ~ 
+                  num_phone_tok_aw +
+                  reverse_prior_prob_vowel_tok_aw +
+                  num_rhymes_full_elp_tok_aw +
+                  avg_phone_per_char_all_tok_aw +
+                  reverse_prior_prob_cons_tok_aw +
+                  Conditional_Probability_Average_tok_aw +
+                  coca_mag_log_freq_tok_aw + 
+                  (1 | ID)+ (1 | passage), lrd_rcv_taada_lemma_cw_pruned_item_var_final_2_scaled, family="binomial" ) 
+
+summary(model_full) #
+r.squaredGLMM(model_full)
+
+#compare models (random to full)
+
+anova(random1_over,model_full) #they are sig different
+
+```
+
+**Confusion matrix **
+
+This will not be a good model because of the unbalanced data
+
+  - Most things will be predicted to be the majority class (correct)
+
+```{r}
+library(caret)
+
+predictions <- as.numeric(predict(model_full, type="response")>0.5)
+
+#add predictions to original dataframe
+
+lrd_rcv_taada_lemma_cw_pruned_item_var_final_2_scaled$predicted <- as.factor(predictions)
+
+str(lrd_rcv_taada_lemma_cw_pruned_item_var_final_2_scaled) 
+
+table(lrd_rcv_taada_lemma_cw_pruned_item_var_final_2_scaled$predicted) # two levels
+
+
+confusionMatrix(lrd_rcv_taada_lemma_cw_pruned_item_var_final_2_scaled$miscue, lrd_rcv_taada_lemma_cw_pruned_item_var_final_2_scaled$predicted,
+                mode = "everything", #what you want to report in stats
+                positive="1") 
+
+
+# Not a good model because everything is mostly predicted as correct (as expected)
+
+```
+
+
+
+
+
+
+
