@@ -1,6 +1,6 @@
 # TAADA_Analyses
 
-This repository contains the analyses for two studies conducted using TAADA and reported in an under review paper. Data is available for the first study, but not for the second. R scripts for both analyses are provided. The two studies are as follows
+This repository contains the analyses for two studies conducted using TAADA and reported in an under review paper. Data is available for the first study, but not for the second, so users cannot replicate it. R scripts for both analyses are provided along with outputs. The two studies are as follows
 
 ## Study 1
 
