@@ -1,6 +1,16 @@
 # TAADA_Analyses
 
-This repository contains the analyses for two studies conducted using TAADA and reported in an under review paper. Data is available for the first study, but not for the second, so users cannot replicate it. R scripts for both analyses are provided along with outputs. The two studies are as follows
+This repository contains the analyses for two studies conducted using TAADA and reported in an under review paper. Data is available for the first study, but not for the second, so users cannot replicate it. R scripts for both analyses are provided along with outputs. 
+
+Included in the repository are
+
+1.  TAADA data extracted from the CLEAR corpus (taada_clear_results_token_cw.csv)
+2.  Final data used in the CLEAR analysis (multicollear_ease_reading_taada.csv)
+3.  The R notebook for the CLEAR analysis (taada_clear_analysis.Rmd)
+4.  The data wrangling and analysis in an R notebook for the miscue study (lrd_rcv_analyses_data_wrangling_analysis_taada_for_github.Rmd)
+
+
+The two studies are as follows
 
 ## Study 1
 
